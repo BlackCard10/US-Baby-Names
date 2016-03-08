@@ -1,0 +1,564 @@
+---
+output:
+  knitrBootstrap::bootstrap_document:
+    title: "Baby Names"
+    theme: Slate
+    menu: FALSE
+    
+---
+  
+     
+     
+# Baby Names
+
+One of the most complete datasets of US names comes to us from applications to the US Social Security Administration.  It is a requirement upon birth in the US that a baby be issued a Social Security Number, which is linked to a name.  Data.gov released a state and national list of these names for the public to explore and I thought this would be a fun way to find interesting aspects of baby names: aspects that might predict certain names, trends in time, and geographic spaces.  I also couldn't resist doing a bit of sleuting regarding my own name, so the last section is bit of self love... 
+  
+If you'd like to view the dataset to explore yourself, it can be found here: [Data.gov](https://catalog.data.gov/dataset/baby-names-from-social-security-card-applications-national-level-data) 
+  
+
+```{r eval = TRUE, echo = FALSE, warning= FALSE, message=FALSE}
+
+# Load the packages 
+library(DBI)
+library(RSQLite)
+library(leaflet)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(maps)
+library(mapproj)
+library(RColorBrewer)
+library(knitrBootstrap)
+
+
+# Read in a list of states and their abbreviations 
+StateAbrev <- read.csv("~/Desktop/states.csv")
+
+# Connect to the SQL Database file
+con = dbConnect (RSQLite::SQLite(), dbname = "~/Desktop/R Project/Baby_Names/database.sqlite")
+
+
+# Get a list of all tables and view the tables
+alltables = dbListTables(con)
+
+
+# Turn all tables into dataframes where the first five observations are present
+A <- list()
+for (i in 1:length(alltables)) {
+	A[[i]] <- dbGetQuery(con, paste0("SELECT * FROM ", alltables[i], " LIMIT 5"))
+
+}
+
+```
+
+
+
+## Exploring Celebrity
+
+I'd always heard on television and in day to day conversations that Americans in particular love to name their children after the Rich and Famous.   What I wanted to understand was: if a celebrity named his/her child an uncommon or unique name would we still follow suit and see a spike in the popularity of this name afterward? 
+  
+This brings me to the candidate names: Apple, Blue, Willow, Jaden, & Ryder are the names of children from A list stars Gwyneth Paltro, Jay-Z, Will Smith x 2, and Kate Hudson. Did these names start a trend because of their famous parents?  After a few seaches over the database I came to these 5 charts: 
+
+```{r echo = FALSE, warning = FALSE, eval = TRUE, fig.height = 10, fig.width = 9, fig.align= "center" }
+
+
+# Set of unusualy baby names 
+celebrity <- c("Jaden" , "Ryder", "Apple", "Blue", "Willow")
+
+celebrityBirthY <- c(1998, 2004, 2004, 2012, 2000)
+
+
+# Store the results of a query to the database of the year and incidence of a presidential name 
+Celeb_Count <- list()
+for (i in 1:length(celebrity)) {
+	Celeb_Count[[i]] <- dbGetQuery(con, paste0('SELECT Sum(Count) AS Count, Year 
+	                                          FROM NationalNames 
+	                                          WHERE Name = ' ," \'", celebrity[i], "\'", 
+	                                          'GROUP BY Year'))
+}
+
+# Name the Pres Count List
+names(Celeb_Count) <- celebrity
+
+# Create a table of rectangles that will be used to outline celebrity charts
+rect_list <- list()
+for (i in 1:length(celebrityBirthY)) {
+  rect_list[[i]] <- data.frame(xmin=celebrityBirthY[i], xmax= celebrityBirthY[i] + 10, ymin=-Inf, ymax=Inf)
+}
+
+
+celeb_plot_Jaden <- ggplot(Celeb_Count$Jaden, aes(x = Year, y = Count)) + geom_line(col = "Blue", size = 1.1) + 
+                    ggtitle("Babies Named Jaden") +
+                    geom_rect(data=rect_list[[1]], aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                    color="Red",
+                    alpha=0.5,
+                    inherit.aes = FALSE)
+
+celeb_plot_Ryder <- ggplot(Celeb_Count$Ryder, aes(x = Year, y = Count)) + geom_line(col = "Blue", size = 1.1) + 
+                    ggtitle("Babies Named Ryder") +
+                    geom_rect(data=rect_list[[2]], aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                    color="Red",
+                    alpha=0.5,
+                    inherit.aes = FALSE)
+
+celeb_plot_Apple <- ggplot(Celeb_Count$Apple, aes(x = Year, y = Count)) + geom_line(col = "Blue", size = 1.1) + 
+                    ggtitle("Babies Named Apple") +
+                    geom_rect(data=rect_list[[3]], aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                    color="Red",
+                    alpha=0.5,
+                    inherit.aes = FALSE)
+  
+
+celeb_plot_Blue <- ggplot(Celeb_Count$Blue, aes(x = Year, y = Count)) + geom_line(col = "Blue", size = 1.1) + 
+                    ggtitle("Babies Named Blue") +
+                    geom_rect(data=rect_list[[4]], aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                    color="Red",
+                    alpha=0.5,
+                    inherit.aes = FALSE)
+
+
+celeb_plot_Willow <- ggplot(Celeb_Count$Willow, aes(x = Year, y = Count)) + geom_line(col = "Blue", size = 1.1) + 
+                    ggtitle("Babies Named Willow") + 
+                    geom_rect(data=rect_list[[5]], aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                    color="Red",
+                    alpha=0.5,
+                    inherit.aes = FALSE)
+
+
+grid.arrange(celeb_plot_Jaden,celeb_plot_Ryder, celeb_plot_Apple,celeb_plot_Blue, celeb_plot_Willow, ncol = 1)
+
+
+```
+  
+
+  
+The left-handed region of any of the outlined sections is the year that each celebrity named his or her child that particular name and the shaded area includes a 10 year time span thereafter. What I'd hoped to capture was a spike in the number of babies named each respective name within that range of years.   
+  
+Looking closely at the charts, for the name Apple there seems to be a plausible connection between the celebrity appearance of the name and a spike in the names occurance in the chart. Directly following the name and for some time after we see many more babies named Apple. For Jaden, Ryder and Willow it is difficult to say that the appearance of the name at that date may have caused the spike in names, because the name was already in an upward trend before the appearance of the celebrity name.  Though, we might wonder if the appearance of the celebrity name increased the trend as I suspect it might have for Jaden and Ryder.   
+
+## Exploring Television Characters
+  
+Another interesting source of popular names I had heard about and always wanted to investigate was the names of television characters on popular shows.  Could these cause a trend in baby names as well? To test this I took two of the most watched television series in the last 50 years, Friends and The Cosby Show, and pulled the names of each of the characters from IMBD. For each name in the chart, I included the length of time that the show played live on television as the shaded region. 
+
+```{r eval = TRUE, echo = FALSE, fig.height = 10, fig.width = 9, message=FALSE, warning=FALSE}
+
+
+# First names of Characters in Friends and Cosby + dates of air 
+Friends <- c("Rachel" , "Monica", "Phoebe", "Joey", "Chandler", "Ross")
+Friends_Time <- c(2004,2014)
+Cosby <- c("Cliff", "Clair", "Denise", "Theo", "Vanessa", "Rudy", "Sandra")
+Cosby_Time <- c(1984, 1992)
+
+
+# Create rect objects from the beginning of the each show to the end 
+rect_Friends <- data.frame(xmin=Friends_Time[1], xmax= Friends_Time[2], ymin=-Inf, ymax=Inf)
+rect_Cosby <- data.frame(xmin=Cosby_Time[1], xmax= Cosby_Time[2], ymin=-Inf, ymax=Inf)
+
+
+# Store the results of a query to the database of the Friends Names
+Friends_Count <- list()
+for (i in 1:length(Friends)) {
+  Friends_Count[[i]] <- dbGetQuery(con, paste0('SELECT Sum(Count) AS Count, Year 
+                                             FROM NationalNames 
+                                             WHERE Name = ' ," \'", Friends[i], "\'", 
+                                             'GROUP BY Year'))
+}
+names(Friends_Count) <- Friends
+
+
+# Store the results of a query to the database of the Cosby names
+Cosby_Count <- list()
+for (i in 1:length(Cosby)) {
+  Cosby_Count[[i]] <- dbGetQuery(con, paste0('SELECT Sum(Count) AS Count, Year 
+                                               FROM NationalNames 
+                                               WHERE Name = ' ," \'", Cosby[i], "\'", 
+                                               'GROUP BY Year'))
+}
+names(Cosby_Count) <- Cosby
+
+
+# Friends Character baby name plots 
+TV_plot_Rachel <- ggplot(Friends_Count$Rachel, aes(x = Year, y = Count)) + geom_line(col = "Red", size = 1.1) + 
+                  ggtitle("Rachel") + 
+                  theme(axis.title.x = element_blank()) +
+                  geom_rect(data=rect_Friends, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                  color="Red",
+                  alpha=0.5,
+                  inherit.aes = FALSE)
+
+TV_plot_Monica <- ggplot(Friends_Count$Monica, aes(x = Year, y = Count)) + geom_line(col = "Red", size = 1.1) + 
+                  ggtitle("Monica") +
+                  theme(axis.title.x = element_blank()) + 
+                  geom_rect(data=rect_Friends, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                  color="Red",
+                  alpha=0.5,
+                  inherit.aes = FALSE)
+
+TV_plot_Phoebe <- ggplot(Friends_Count$Phoebe, aes(x = Year, y = Count)) + geom_line(col = "Red", size = 1.1) + 
+                  ggtitle("Phoebe") +
+                  theme(axis.title.x = element_blank()) + 
+                  geom_rect(data=rect_Friends, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                  color="Red",
+                  alpha=0.5,
+                  inherit.aes = FALSE)
+
+TV_plot_Joey <- ggplot(Friends_Count$Joey, aes(x = Year, y = Count)) + geom_line(col = "Red", size = 1.1) + 
+                  ggtitle("Joey") + 
+                  theme(axis.title.x = element_blank()) + 
+                  geom_rect(data=rect_Friends, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                  color="Red",
+                  alpha=0.5,
+                  inherit.aes = FALSE)
+
+TV_plot_Chandler <- ggplot(Friends_Count$Chandler, aes(x = Year, y = Count)) + geom_line(col = "Red", size = 1.1) + 
+                  ggtitle("Chandler") +
+                  theme(axis.title.x = element_blank()) + 
+                  geom_rect(data=rect_Friends, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                  color="Red",
+                  alpha=0.5,
+                  inherit.aes = FALSE)
+
+TV_plot_Ross <- ggplot(Friends_Count$Ross, aes(x = Year, y = Count)) + geom_line(col = "Red", size = 1.1) + 
+                  ggtitle("Ross") + 
+                  theme(axis.title.x = element_blank()) + 
+                  geom_rect(data=rect_Friends, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                  color="Red",
+                  alpha=0.5,
+                  inherit.aes = FALSE)
+
+grid.arrange(TV_plot_Rachel,TV_plot_Monica,TV_plot_Phoebe,TV_plot_Joey,TV_plot_Chandler,TV_plot_Ross, ncol = 2, nrow = 3, top = textGrob("Friends Characters", gp =gpar(fontsize = 15)))
+
+
+
+```
+
+Looking at the plots above it seems as if the only names whose popularity is plausibly connected to a Friends character are Phoebe & Chandler. There is somewhat of a delay between the debut of the show and the spike that we see in the chart, but this could be due to the fact that the show hadn't reached the height of popularity to impact the mind of Americans until that point. 
+Looking at the others, it seems the names popularity is likely part of larger trends that were already in place before the Friends characters debuted with these names.  Next, we'll take a look at the Cosby plot below.  
+
+```{r fig.keep = TRUE, echo = FALSE, fig.height = 10, fig.width = 9, message= FALSE, warning= FALSE}
+
+# Friends Character baby name plots 
+TV_plot_Cliff <- ggplot(Cosby_Count$Cliff, aes(x = Year, y = Count)) + geom_line(col = "DarkGreen", size = 1.1) + 
+                ggtitle("Cliff") +
+                theme(axis.title.x = element_blank()) +
+                geom_rect(data=rect_Cosby, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                color="Blue",
+                alpha=0.5,
+                inherit.aes = FALSE)
+
+TV_plot_Clair <- ggplot(Cosby_Count$Clair, aes(x = Year, y = Count)) + geom_line(col = "DarkGreen", size = 1.1) + 
+                ggtitle("Clair") +
+                theme(axis.title.x = element_blank())  +
+                geom_rect(data=rect_Cosby, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                color="Blue",
+                alpha=0.5,
+                inherit.aes = FALSE)
+  
+TV_plot_Denise <- ggplot(Cosby_Count$Denise, aes(x = Year, y = Count)) + geom_line(col = "DarkGreen", size = 1.1) + 
+                ggtitle("Denise") +
+                theme(axis.title.x = element_blank()) + 
+                geom_rect(data=rect_Cosby, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                color="Blue",
+                alpha=0.5,
+                inherit.aes = FALSE)
+  
+TV_plot_Theo <- ggplot(Cosby_Count$Theo, aes(x = Year, y = Count)) + geom_line(col = "DarkGreen", size = 1.1) + 
+                ggtitle("Theo") +
+                theme(axis.title.x = element_blank()) + 
+                geom_rect(data=rect_Cosby, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                color="Blue",
+                alpha=0.5,
+                inherit.aes = FALSE)
+  
+TV_plot_Vanessa <- ggplot(Cosby_Count$Vanessa, aes(x = Year, y = Count)) + geom_line(col = "DarkGreen", size = 1.1) + 
+                ggtitle("Vanessa") +
+                theme(axis.title.x = element_blank()) + 
+                geom_rect(data=rect_Cosby, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                color="Blue",
+                alpha=0.5,
+                inherit.aes = FALSE)
+  
+TV_plot_Rudy <- ggplot(Cosby_Count$Rudy, aes(x = Year, y = Count)) + geom_line(col = "DarkGreen", size = 1.1) + 
+                ggtitle("Rudy") +
+                theme(axis.title.x = element_blank()) + 
+                geom_rect(data=rect_Cosby, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                color="Blue",
+                alpha=0.5,
+                inherit.aes = FALSE)
+  
+TV_plot_Sandra <- ggplot(Cosby_Count$Sandra, aes(x = Year, y = Count)) + geom_line(col = "DarkGreen", size = 1.1) + 
+                ggtitle("Sandra") +
+                theme(axis.title.x = element_blank()) + 
+                geom_rect(data=rect_Cosby, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+                color="Blue",
+                alpha=0.5,
+                inherit.aes = FALSE)
+              
+
+grid.arrange(TV_plot_Cliff,TV_plot_Clair,TV_plot_Denise,TV_plot_Theo,TV_plot_Vanessa,TV_plot_Rudy,TV_plot_Sandra, ncol = 2, nrow= 4, top = textGrob("Cosby Characters", gp =gpar(fontsize = 15)))
+
+
+```
+  
+  
+Looking at these character names we again only see a subset of these, Rudy and Theo, as being plausibly conneted to trends in baby names.  So, what is it about these particular names that catches the attention of Americans over the others? Could it be that there are certain aspects of the characters within the show that impact the popularity of the names?  Could it be that well loved characters catch the attention of popular conscience, as I suspect with Theo and Rudy? It might be interesting to quanitify these sorts of questions to test them in future examinations.  
+
+## High Level Examination
+
+Looking above at some of the charts you might notice that in certain spans of time, a name can reach massive heights of popularity when before it was largely ignored, or non existant.  Below I wanted to see if there were any names that were the opposite, showing popularity across generations.    
+
+```{r echo = FALSE, eval= TRUE, fig.height= 10, fig.width=15, fig.align= "center"}
+
+
+# Five most popular baby names by Generation
+Lost_Gen_Top <- dbGetQuery(con, "SELECT Name, Year, Sum(Count) AS Total
+                              FROM NationalNames
+                              WHERE Year BETWEEN 1883 AND 1900
+                              GROUP BY Name
+                              ORDER BY Total DESC
+                              Limit 5 ")
+
+Greatest_Gen_Top <- dbGetQuery(con, "SELECT Name, Year, Sum(Count) AS Total
+                              FROM NationalNames
+                         	    WHERE Year BETWEEN 1901 AND 1924
+                         	    GROUP BY Name
+                         	    ORDER BY Total DESC
+                              Limit 5 ")
+
+Silent_Gen_Top <- dbGetQuery(con, "SELECT Name, Year, Sum(Count) AS Total
+                              FROM NationalNames
+                         	    WHERE Year BETWEEN 1925 AND 1946
+                              GROUP BY Name
+                              ORDER BY Total DESC
+                              Limit 5 ")
+
+BabyBoom_Gen_Top <- dbGetQuery(con, "SELECT Name, Year, Sum(Count) AS Total
+                              FROM NationalNames
+                              WHERE Year BETWEEN 1947 AND 1964
+                              GROUP BY Name
+                              ORDER BY Total DESC
+                              Limit 5 ")
+
+X_Gen_Top <- dbGetQuery(con, "SELECT Name, Year, Sum(Count) AS Total
+                              FROM NationalNames
+                              WHERE Year BETWEEN 1965 AND 1980
+                              GROUP BY Name
+                              ORDER BY Total DESC
+                              Limit 5 ")
+
+Millennial_Gen_Top <- dbGetQuery(con, "SELECT Name, Year, Sum(Count) AS Total
+                              FROM NationalNames
+                              WHERE Year >= 1980
+                              GROUP BY Name
+                              ORDER BY Total DESC
+                              Limit 5 ")
+
+Lost_Gen_Plot <- ggplot(Lost_Gen_Top, aes(x = Name, y = Total)) + 
+                  geom_bar(stat = "identity", fill = "DarkBlue") +
+                  theme_bw() + theme(axis.title.x = element_text(size = rel(.30))) + 
+                  theme(axis.title.y = element_blank()) +
+                  theme(axis.title.x = element_blank()) +
+                  theme(panel.background = element_rect(fill = "lightGrey")) +
+                  ggtitle("Lost Generation") +
+                  scale_y_continuous(limits = c(0, 2500000))
+
+Greatest_Gen_Plot <- ggplot(Greatest_Gen_Top, aes(x = Name, y = Total)) + 
+                  geom_bar(stat = "identity", fill = "DarkBlue") +
+                  theme_bw() + theme(axis.title.x = element_text(size = rel(.30))) + 
+                  theme(axis.title.x = element_blank()) +
+                  theme(axis.title.y = element_blank()) +
+                  theme(panel.background = element_rect(fill = "lightGrey")) +
+                  ggtitle("Greatest Generation") +
+                  scale_y_continuous(limits = c(0, 2500000))
+
+Silent_Gen_Plot <- ggplot(Silent_Gen_Top, aes(x = Name, y = Total)) + 
+                  geom_bar(stat = "identity", fill = "DarkBlue") +
+                  theme_bw() + theme(axis.title.x = element_text(size = rel(.30))) + 
+                  theme(axis.title.y = element_blank()) +
+                  theme(axis.title.x = element_blank()) +
+                  theme(panel.background = element_rect(fill = "lightGrey")) +
+                  ggtitle("Silent Generation") +
+                  scale_y_continuous(limits = c(0, 2500000))
+
+BabyBoom_Gen_Plot <- ggplot(BabyBoom_Gen_Top, aes(x = Name, y = Total)) + 
+                 geom_bar(stat = "identity", fill = "DarkBlue") +
+                 theme_bw() + theme(axis.title.x = element_text(size = rel(.30))) + 
+                 theme(axis.title.y = element_blank()) +
+                 theme(axis.title.x = element_blank()) +
+                 theme(panel.background = element_rect(fill = "lightGrey")) +
+                 ggtitle("Baby Boomers") + 
+                 scale_y_continuous(limits = c(0, 2500000))
+
+X_Gen_Plot <- ggplot(X_Gen_Top, aes(x = Name, y = Total)) + 
+                geom_bar(stat = "identity", fill = "DarkBlue") +
+                theme_bw() + theme(axis.title.x = element_text(size = rel(.30))) + 
+                theme(axis.title.x = element_blank()) +
+                theme(axis.title.y = element_blank()) +
+                theme(panel.background = element_rect(fill = "lightGrey")) +
+                ggtitle("Generation X ") +
+                scale_y_continuous(limits = c(0, 2500000))
+
+
+Millenial_Gen_Plot <- ggplot(Millennial_Gen_Top, aes(x = Name, y = Total)) + 
+                geom_bar(stat = "identity", fill = "DarkBlue") +
+                theme_bw() + theme(axis.title.x = element_text(size = rel(.30))) + 
+                theme(axis.title.y = element_blank()) +
+                theme(axis.title.x = element_blank()) +
+                theme(panel.background = element_rect(fill = "lightGrey")) +
+                ggtitle("Millennial") + 
+                scale_y_continuous(limits = c(0, 2500000))
+
+grid.arrange(Lost_Gen_Plot, Greatest_Gen_Plot, Silent_Gen_Plot, BabyBoom_Gen_Plot, X_Gen_Plot, Millenial_Gen_Plot, ncol = 3, 
+             top = textGrob("The Top Names Across the Generations",  gp =gpar(fontsize = 18, fill ="gray")))
+
+```
+
+
+Looking at the charts we can see that the names James and John appear in the top five most popular names in five of the six generations.  The names William, Mary, and Michael each appear 3 times respectively. 
+It's intersting to note that all of the most popular names of any generation in the US since 1879 are names from Christian theology. It seems that American names, like our history for the most part, are deeply impacted by our founding as a Christian settlement. 
+
+## James: Long Lasting?
+
+Given that James is one of the most popular names since 1879, I feel a bit more justified in my interest in examaining it over time and space.  Given that the name has been popular for so long, it might be interesting to see a trendline within each generation of how it fared, which I created below: 
+
+```{r, echo = FALSE, eval = TRUE, fig.width= 9, fig.height=9}
+
+# Return the occurance of the name James over time
+James_Time <- dbGetQuery(con, "SELECT Year, Sum(Count) AS Count 
+                         From NationalNames 
+                         WHERE Name = 'James' AND Gender = 'M'
+                         GROUP BY Year")
+                              
+
+# Plot the occurance of the name James over time
+LostG <- ggplot(subset(James_Time, Year > 1883 & Year < 1900 ), aes(x = Year, y = Count)) + 
+  ggtitle("Lost Generation")
+GreatestG <- ggplot(subset(James_Time, Year > 1901 & Year < 1924 ), aes(x = Year, y = Count)) + 
+  ggtitle("Greatest Generation")
+SilentG <- ggplot(subset(James_Time, Year > 1925 & Year < 1946 ), aes(x = Year, y = Count)) + 
+  ggtitle("Silent Generation")
+BabyBoom <- ggplot(subset(James_Time, Year > 1947 & Year < 1964 ), aes(x = Year, y = Count)) + 
+  ggtitle("Baby Boomers")
+XG <- ggplot(subset(James_Time, Year > 1965 & Year < 1980 ), aes(x = Year, y = Count)) + 
+  ggtitle("Generation X")
+MillenG <- ggplot(subset(James_Time, Year > 1981), aes(x = Year, y = Count)) + 
+  ggtitle("Millennial Generation")
+
+
+LostG <- LostG + geom_line(col = "firebrick", size = 1.1) + theme_bw() + 
+			theme(axis.title.y = element_text(size = rel(.75))) + 
+      theme(axis.title.x = element_text(size = rel(.75))) +
+      theme(panel.background = element_rect(fill = "lightGrey")) +
+      scale_y_continuous(limits = c(0, 100000))
+
+			
+GreatestG <- GreatestG + geom_line(col = "firebrick", size = 1.1) + theme_bw() + 
+      theme(axis.title.x = element_text(size = rel(.75))) + 
+			theme(axis.title.y = element_text(size = rel(.75))) +
+      theme(panel.background = element_rect(fill = "lightGrey")) +
+      scale_y_continuous(limits = c(0, 100000))
+
+SilentG <- SilentG + geom_line(col = "firebrick", size = 1.1) + theme_bw() + 
+      theme(axis.title.x = element_text(size = rel(.75))) + 
+			theme(axis.title.y = element_text(size = rel(.75))) + 
+      theme(panel.background = element_rect(fill = "lightGrey")) +
+      scale_y_continuous(limits = c(0, 100000))
+      
+			
+BabyBoom <- BabyBoom + geom_line(col = "firebrick", size = 1.1) + 
+      theme_bw() + theme(axis.title.x = element_text(size = rel(.75))) + 
+			theme(axis.title.y = element_text(size = rel(.75))) +
+      theme(panel.background = element_rect(fill = "lightGrey")) +
+      scale_y_continuous(limits = c(0, 100000))
+			
+XG <- XG + geom_line(col = "firebrick", size = 1.1) + 
+      theme_bw() + theme(axis.title.x = element_text(size = rel(.75))) + 
+			theme(axis.title.y = element_text(size = rel(.75))) +
+      theme(panel.background = element_rect(fill = "lightGrey")) +
+      scale_y_continuous(limits = c(0, 100000))
+      
+			
+MillenG <- MillenG + geom_line(col = "firebrick", size = 1.1) + 
+      theme_bw() + theme(axis.title.x = element_text(size = rel(.75))) + 
+			theme(axis.title.y = element_text(size = rel(.75))) +
+      theme(panel.background = element_rect(fill = "lightGrey")) +
+      scale_y_continuous(limits = c(0, 100000))
+			
+grid.arrange(LostG, GreatestG, SilentG, BabyBoom, XG, MillenG, ncol = 3, 
+             top = textGrob("The Name James Across the Generations", gp =gpar(fontsize = 15)))
+
+
+
+```
+
+Within the Greatest Generation chart there is a *massive* increase in the number of persons named James in the population between 1912-1915.  Why might this be?  It may have to do with this fellow: [James W. Gerard](https://en.wikipedia.org/wiki/James_W._Gerard) the embassador to Germany during the years before and through the US entry into World War I.  Gerard, President Wilson and the Kaiser were involved in a series of discussions regarding the potential for US intervention in the war through diplomatic channels. After being formally asked to leave Germany in 1917, Gerard wrote a book about his experiences in Germany that was made into a feature film by Warner Brothers.  He chroniced the tensions he experienced handling communications between then President Wilson and the Kaiser.  
+
+Unless there is another conquering hero named James in this generation, it seems likely that the overall trend in the name James is downward. Since the last spike in 1944, new babies named James have dropped to levels approaching those seen at the turn of the 20th century.    
+
+
+### James & Geography
+
+I fall into the group of people who love to wonder, "what was happening when...?" and in the context of babies named James the  wonder involves my year of birth and United States.  I created the chart below to see in which states were there other James being born and how many.  
+
+```{r, echo = FALSE, eval=TRUE, fig.width=10, fig.height=10}
+
+# Query the DB for the incidence of James by state
+James_By_State <- dbGetQuery(con, "SELECT State, sum(Count) AS TotalJ
+					          FROM StateNames
+					          WHERE Name = 'James'
+					          AND Year = 1988
+					          GROUP BY State 
+                    ORDER BY State")
+
+# Import the shape files for US states
+stateShapes <- map("state", plot = FALSE, fill = TRUE)
+stateShapes <- fortify(stateShapes)  
+uniqueStates <- sort(unique(stateShapes$region))
+
+
+James_By_State <- James_By_State[-c(1,12),] # Remove Alaska and Hawaii. Only lower 48 + DC are shown
+names(James_By_State) <- c("Abbreviation", "TotalJ")
+James_By_State <- merge(James_By_State, StateAbrev)
+James_By_State <- James_By_State[,-c(1)] # Remove the Abbreviations for States 
+names(James_By_State) <- c("TotalJ", "region")  
+James_By_State$region <- tolower(James_By_State$region)
+
+# Create data frame for map plot
+MapData <- merge(x = stateShapes, y = James_By_State, by = "region", all.x = TRUE)
+
+
+# Create a color scheme to fit the model
+myPal <- colorRampPalette(brewer.pal(9,'Reds'))(20)
+
+
+# Map the fill color to the number of babies born.  
+mapPlot <- ggplot(MapData,
+                  aes(x = long, y = lat, group = group,
+                      fill = TotalJ))
+mapPlot <- mapPlot + geom_polygon(colour = "DarkGrey")
+mapPlot <- mapPlot + coord_map(project="conic", lat0 = 30)
+mapPlot <- mapPlot + scale_fill_gradientn(colours = myPal)
+mapPlot <- mapPlot + ggtitle("Babies Named James Born in 1988")
+print(mapPlot)
+
+```
+
+It's probably no surprise that given how common a name James is, the prevalence of the name seems to follow the population; California, Texas, New York and Florida have the largest numbers of babies named James and also the largest populations in the United States.
+
+
+## Closing
+
+This is such an interesting dataset and there are so many questions that we might answer next.  Are there certain names that used to be female/male only and that are now used by multiple genders? Are there certain names that are only popular in certain states and what are they?  Are there certain parts of names, vowel sounds, or constructions, that might predict whether the US will "Like" a name? Until next time...
+
+
+
+
+
+
+
+
+
+
+
+
+
