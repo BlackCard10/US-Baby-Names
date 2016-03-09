@@ -12,10 +12,10 @@ library(RColorBrewer)
 
 
 # Read in a list of states and their abbreviations 
-StateAbrev <- read.csv("~/Desktop/states.csv")
+StateAbrev <- read.csv("~/Desktop/R Project/Baby_Names/US-Baby-Names/states.csv")
 
 # Connect to the SQL Database file
-con = dbConnect (RSQLite::SQLite(), dbname = "~/Desktop/R Project/Baby_Names/database.sqlite")
+con = dbConnect (RSQLite::SQLite(), dbname = "~/Desktop/R Project/Baby_Names/US-Baby-Names/database.sqlite")
 
 
 # Get a list of all tables and view the tables
@@ -54,35 +54,35 @@ MillenG <- ggplot(subset(James_Time, Year > 1981), aes(x = Year, y = Count)) +
   ggtitle("Millennial Generation")
 
 
-LostG <- LostG + geom_smooth(col = "firebrick") + theme_bw() + 
+LostG <- LostG + geom_line(col = "firebrick") + theme_bw() + 
 			theme(axis.title.y = element_text(size = rel(.75))) + 
       theme(axis.title.x = element_text(size = rel(.75))) +
       scale_y_continuous(limits = c(0, 100000))
 
 			
-GreatestG <- GreatestG + geom_smooth(col = "firebrick") + theme_bw() + 
+GreatestG <- GreatestG + geom_line(col = "firebrick") + theme_bw() + 
       theme(axis.title.x = element_text(size = rel(.75))) + 
 			theme(axis.title.y = element_text(size = rel(.75))) +
       scale_y_continuous(limits = c(0, 100000))
 
-SilentG <- SilentG + geom_smooth(col = "firebrick") + theme_bw() + 
+SilentG <- SilentG + geom_line(col = "firebrick") + theme_bw() + 
       theme(axis.title.x = element_text(size = rel(.75))) + 
 			theme(axis.title.y = element_text(size = rel(.75))) + 
       scale_y_continuous(limits = c(0, 100000))
       
 			
-BabyBoom <- BabyBoom + geom_smooth(col = "firebrick") + 
+BabyBoom <- BabyBoom + geom_line(col = "firebrick") + 
       theme_bw() + theme(axis.title.x = element_text(size = rel(.75))) + 
 			theme(axis.title.y = element_text(size = rel(.75))) +
       scale_y_continuous(limits = c(0, 100000))
 			
-XG <- XG + geom_smooth(col = "firebrick") + 
+XG <- XG + geom_line(col = "firebrick") + 
       theme_bw() + theme(axis.title.x = element_text(size = rel(.75))) + 
 			theme(axis.title.y = element_text(size = rel(.75))) +
       scale_y_continuous(limits = c(0, 100000))
       
 			
-MillenG <- MillenG + geom_smooth(col = "firebrick") + 
+MillenG <- MillenG + geom_line(col = "firebrick") + 
       theme_bw() + theme(axis.title.x = element_text(size = rel(.75))) + 
 			theme(axis.title.y = element_text(size = rel(.75))) +
       scale_y_continuous(limits = c(0, 100000))
@@ -226,7 +226,7 @@ grid.arrange(Lost_Gen_Plot, Greatest_Gen_Plot, Silent_Gen_Plot, BabyBoom_Gen_Plo
              top = textGrob("The Top Names Across the Generations", gp =gpar(fontsize = 15)))
 
 
-# First names of the last 10 presidents
+# Set of unusual baby names and years
 celebrity <- c("Jaden" , "Ryder", "Apple", "Blue", "Willow")
 
 celebrityBirthY <- c(1998, 2004, 2004, 2012, 2000)
