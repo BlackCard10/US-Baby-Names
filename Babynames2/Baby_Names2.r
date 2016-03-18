@@ -30,13 +30,14 @@ names(A) <- alltables
 
 # What are the names that show significant positive change in the last 50 years? 
 Names_Change <- dbGetQuery(con, "SELECT a.Name, a.gender, (b.Count - a.Count) AS Diff
-                		FROM NationalNames a
-                        JOIN NationalNames b ON (a.Name = b.Name AND a.Gender = b.Gender)
-                        WHERE a.Year = 1964
+						FROM NationalNames a
+						JOIN NationalNames b ON (a.Name = b.Name AND a.Gender = b.Gender)
+						WHERE a.Year = 1964
                         AND b.Year = 2014
                         GROUP BY a.name, a.gender, a.Year
                         ORDER BY Diff DESC")
 
+# Subset the top and bottom ten names 
 Names_ChangeTop <- Names_Change[1:10, 1:3]
 Names_ChangeBottom <- Names_Change[6382:6391, 1:3]
 
@@ -44,22 +45,22 @@ Names_ChangeBottom <- Names_Change[6382:6391, 1:3]
 TopNameValues <- list()
 for (i in 1:length(Names_ChangeTop$Name))
 TopNameValues[[i]] <- dbGetQuery(con, paste0('SELECT Name, Year, Count 
-								FROM NationalNames 
-								WHERE Name = ', " \'",Names_ChangeTop$Name[i],"\'", 
-                                ' AND Gender = ', " \'",Names_ChangeTop$Gender[i],"\'",
-                                ' AND Year BETWEEN 1964 AND 2014'))
+						FROM NationalNames 
+						WHERE Name = ', " \'",Names_ChangeTop$Name[i],"\'", 
+                        ' AND Gender = ', " \'",Names_ChangeTop$Gender[i],"\'",
+                        ' AND Year BETWEEN 1964 AND 2014'))
 
 # Query the database for the bottom names' yearly values since 1964
 BottomNameValues <- list()
 for (i in 1:length(Names_ChangeBottom$Name))
   BottomNameValues[[i]] <- dbGetQuery(con, paste0('SELECT Name, Year, Count 
-  								FROM NationalNames 
-  								WHERE Name = ', " \'",Names_ChangeBottom$Name[i],"\'", 
-                                ' AND Gender = ', " \'",Names_ChangeBottom$Gender[i],"\'",
-                                ' AND Year BETWEEN 1964 AND 2014'))
+  						FROM NationalNames 
+  						WHERE Name = ', " \'",Names_ChangeBottom$Name[i],"\'", 
+                        ' AND Gender = ', " \'",Names_ChangeBottom$Gender[i],"\'",
+                        ' AND Year BETWEEN 1964 AND 2014'))
 
 
-# Name the list that contains the data for the bottom names
+# Name the list that contains the data for the bottom names and plot it
 BottomNameValues$Name <- as.factor(BottomNameValues$Name)
 BottomNameValues$Year <- as.factor(BottomNameValues$Year)
 df2 <- ldply(BottomNameValues, data.frame)
@@ -67,7 +68,7 @@ P2 <- ggplot(df2, aes(x= Year, y= Count, colour= Name , group= Name)) + geom_lin
             ggtitle("Names With the Largest Declines")
 P2
 
-# Name the list that contains the data for the top names 
+# Name the list that contains the data for the top names and plot it
 Names_ChangeTop$Gender <- as.factor(Names_ChangeTop$Gender)
 Names_ChangeTop$Name <- as.factor(Names_ChangeTop$Name)
 df <- ldply(TopNameValues, data.frame)
@@ -87,11 +88,11 @@ MalesSince_1964 <- dbGetQuery(con, "SELECT Year, Count, Name
                                   AND Year BETWEEN 1964 AND 2014" ) 
 
 
-# Remove that last character from the name 
+# Remove the last character from the name 
 MalesSince_1964$Ending <- sapply(MalesSince_1964$Name, LastChar)
 
 
-# Sum the number of names which end in each letter, grouped by year
+# Sum the number of male names endings letter, grouped by year
 Endings1 <- unique(MalesSince_1964$Ending)
 ME_1 <- list() 
 for (i in 1:length(Endings1)) {
@@ -126,7 +127,7 @@ FemalesSince_1964 <- dbGetQuery(con, "SELECT Year, Count, Name
 FemalesSince_1964$Ending <- sapply(FemalesSince_1964$Name, LastChar)
 
 
-# Sum the number of names which end in each letter, grouped by year
+# Sum the number of female names which end in each letter, grouped by year
 Endings2 <- unique(FemalesSince_1964$Ending)
 FE_1 <- list() 
 for (i in 1:length(Endings2)) {
@@ -138,7 +139,7 @@ for (i in 1:length(Endings2)) {
 }
 names(FE_1) <- Endings2
 
-# Add names in dataframes
+# Add names to the FE_1 dataframe
 for (i in 1:length(FE_1)) {
   names(FE_1[[i]]) <- c('Year', "Ending", 'Total')
 }
