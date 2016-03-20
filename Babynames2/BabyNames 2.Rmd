@@ -1,0 +1,348 @@
+---
+output:
+  knitrBootstrap::bootstrap_document:
+    title: "Baby Names"
+    theme: Slate
+    menu: FALSE
+    
+---
+  
+# Underlying Trends in Names
+At the end of the last analysis of baby names, there seemed to be so much more to be explored and answered that hadn't been. We found that there were some events (a certain celebrity and television character having a certain name) that seemed to be plausible leading indicators of popularity. To me though, this is still unsettling and it doesn't address the hundreds of thousdands of other names in America.  Couldn't we find an overarching theme or trend that predicates certain names' popularity for society at large?   
+  
+This will be a small look at what may be one of many interactions that are present in naming conventions over time.    
+
+```{r eval = TRUE, echo = FALSE, warning= FALSE, message=FALSE}
+
+# Load the packages 
+library(DBI)
+library(RSQLite)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(plyr)
+library(dplyr)
+library(knitrBootstrap)
+
+
+# Connect to the SQL Database file
+con = dbConnect (RSQLite::SQLite(), dbname = "~/Desktop/R Project/Baby_Names/US-Baby-Names/database.sqlite")
+
+
+# Get a list of all tables and view the tables
+alltables = dbListTables(con)
+
+
+# Turn all tables into dataframes where the first five observations are present
+A <- list()
+for (i in 1:length(alltables)) {
+	A[[i]] <- dbGetQuery(con, paste0("SELECT * FROM ", alltables[i], " LIMIT 5"))
+}
+
+
+# Add the names for easy search
+names(A) <- alltables
+
+# What are the names that show significant positive change in the last 50 years? 
+Names_Change <- dbGetQuery(con, "SELECT a.Name, a.gender, (b.Count - a.Count) AS Diff
+						FROM NationalNames a
+						JOIN NationalNames b ON (a.Name = b.Name AND a.Gender = b.Gender)
+						WHERE a.Year = 1964
+            AND b.Year = 2014
+            GROUP BY a.name, a.gender, a.Year
+            ORDER BY Diff DESC")
+
+# Subset the top and bottom ten names 
+Names_ChangeTop <- Names_Change[1:10, 1:3]
+Names_ChangeBottom <- Names_Change[6382:6391, 1:3]
+
+# Query the database for the top names' yearly values since 1964
+TopNameValues <- list()
+for (i in 1:length(Names_ChangeTop$Name))
+TopNameValues[[i]] <- dbGetQuery(con, paste0('SELECT Name, Year, Count 
+						FROM NationalNames 
+						WHERE Name = ', " \'",Names_ChangeTop$Name[i],"\'", 
+                        ' AND Gender = ', " \'",Names_ChangeTop$Gender[i],"\'",
+                        ' AND Year BETWEEN 1964 AND 2014'))
+
+# Query the database for the bottom names' yearly values since 1964
+BottomNameValues <- list()
+for (i in 1:length(Names_ChangeBottom$Name))
+  BottomNameValues[[i]] <- dbGetQuery(con, paste0('SELECT Name, Year, Count 
+  						FROM NationalNames 
+  						WHERE Name = ', " \'",Names_ChangeBottom$Name[i],"\'", 
+                        ' AND Gender = ', " \'",Names_ChangeBottom$Gender[i],"\'",
+                        ' AND Year BETWEEN 1964 AND 2014'))
+```
+
+
+
+
+## Popular and Unpopular Names
+To begin, I thought that it would be useful to look at a selection of names that had the largest gains in popularity over some finite span of years. I chose the last 50 years in the database and took the ten names with the largest increase in number and largest decrease in number over that time frame. 
+
+
+
+
+
+```{r echo = FALSE, eval = TRUE, fig.height = 10, fig.width = 9, fig.align= "center" }
+
+
+# Name the list that contains the data for the bottom names and plot it
+BottomNameValues$Name <- as.factor(BottomNameValues$Name)
+BottomNameValues$Year <- as.factor(BottomNameValues$Year)
+df2 <- ldply(BottomNameValues, data.frame)
+P2 <- ggplot(df2, aes(x= Year, y= Count, colour= Name , group= Name)) + geom_line() + 
+            ggtitle("Names With the Largest Declines")
+P2
+
+```
+
+
+
+
+Looking at the chart above there are a few things that jump out to me about these names:
+
+* These names are all very short: they have very few syllables, with a maximum of two syllables and some with only one
+
+* All of these names end in consonants except for Lisa
+
+* All of these names start with consonants
+
+
+
+
+```{r echo = FALSE, eval = TRUE, fig.height = 10, fig.width = 9, fig.align= "center" }
+
+# Name the list that contains the data for the top names and plot it
+
+Names_ChangeTop$Gender <- as.factor(Names_ChangeTop$Gender)
+Names_ChangeTop$Name <- as.factor(Names_ChangeTop$Name)
+df <- ldply(TopNameValues, data.frame)
+P1 <- ggplot(df, aes(x= Year, y= Count, colour= Name , group= Name)) + geom_line() +
+          ggtitle("Names with the Largest Gains")
+P1
+```
+
+
+
+
+Looking at the names that have the largest gains there are similar things that stand out. 
+
+* Notice that all of most popular female names end with an 'a'. To be more particular about it, each of these names end with a soft 'a' sound.  Close your eyes and say each of the female names very slowly. Hear that short 'uh' sound that they all end with? 
+
+* Unlike the decliner list, many of these (half) start with vowels
+
+* There are a mix of longer syllable lengths here unlike the decliners list  
+
+## Sounds and Names
+  
+There are many things to test from just these first two visualizations, but there seems to be something going on here with certain ending sounds in these names.  It seem as if it would be unlikely that all of the most popular female names end with an 'a' by chance. Moreover, for men all of the most popular names that we've pulled end in consonants, with 'n' and 'm' represented more.  
+  
+I think it might be interesting to investigate if each of the ending letters of the names has something to do with being pleasing to modern ears.  To be more specific, I'd like to see if there are major trends in the popularity of certain ending letters/sounds and if these might also be gender specific.
+  
+## Male Names and Ending Letters
+  
+Let's begin with male names.  Below are all male names in the last 50 years aggregated by their ending letters - by year.  The next chart below is a detail of the first, but only containing the names with the largest change over time.  What jumps right out? 
+
+
+
+
+```{r echo = FALSE, warning = FALSE, eval = TRUE, fig.height = 10, fig.width = 9, fig.align= "center" }
+
+# Write a function to remove the last character from any given string
+LastChar <- function (x) substring(as.character(x), nchar(as.character(x)), 
+			nchar(as.character(x)))
+
+
+# Query the Database for counts of all male names since 1964
+MalesSince_1964 <- dbGetQuery(con, "SELECT Year, Count, Name
+                                  FROM NationalNames
+                                  WHERE Gender = 'M'
+                                  AND Year BETWEEN 1964 AND 2014" ) 
+
+
+# Remove the last character from the name 
+MalesSince_1964$Ending <- sapply(MalesSince_1964$Name, LastChar)
+
+
+# Sum the number of male names endings letter, grouped by year
+Endings1 <- unique(MalesSince_1964$Ending)
+ME_1 <- list() 
+invisible(for (i in 1:length(Endings1)) {
+  ME_1[[i]] <- MalesSince_1964 %>% 
+    select(Year, Count, Ending) %>% 
+    group_by(Year) %>% 
+    filter(Ending == Endings1[i]) %>% 
+    summarise(Endings1[i], sum(Count))
+})
+names(ME_1) <- Endings1 
+
+# Add names in dataframes
+invisible(for (i in 1:length(ME_1)) {
+  names(ME_1[[i]]) <- c('Year', "Ending", 'Total')
+})
+
+# Clone ME into ME2, combined it into a single vector and plot it 
+ME_2 <- ldply(ME_1, data.frame)
+MEP <- ggplot(ME_2, aes(x = Year, y = Total, colour = Ending, group = Ending)) + 
+			  geom_line() +
+        ggtitle("Change in Ending Letter: All Males Names")
+
+MEP 
+```
+
+
+
+
+There are a few things that I took note of: 
+  
+* Notice how popular names ending with an 'n' have been in the last 50 years.  These names have increased more in the last 50 years than any other name for men. 
+
+* We prefer names that end in r, like Carter and Conor, though not to the same degree that we prefer names that end with an 'n'
+
+* For contrast, we've started to dislike male names ending in 'y', but for some period of time we did enjoy them as represented by their being in this list.  
+
+
+
+
+```{r echo = FALSE, warning = FALSE, eval = TRUE, fig.height = 10, fig.width = 9, fig.align= "center" }
+
+# Net Change Per Character Males
+ChangeAlphaM <- list()
+invisible(for (i in 1:length(ME_1)) {
+  ChangeAlphaM[[i]] <- ME_1[[i]][51,3] - ME_1[[i]][1,3]
+})
+
+
+# Find the characters with the greatest absolute value change over the period in Males
+names(ChangeAlphaM) <- names(ME_1)
+AlphaM <- ldply(ChangeAlphaM, data.frame)
+TopChangeM <- AlphaM[order(-abs(AlphaM$Total)),][1:10, 1]
+
+
+# Plot the ending values with the greatest absolute value change for Males 
+MEP2Sub <- ggplot(ME_2[ME_2$Ending %in% TopChangeM,], aes(x = Year, y = Total, 
+		   colour = Ending, group = Ending)) + 
+		   geom_line() +
+       ggtitle("Change in Ending Letter: Top Male Names")
+
+
+MEP2Sub
+
+```
+
+
+
+
+
+It's hard for me to reconcile so many complex multi-year trends into a concise rule for our likes and dislikes for male names and their ending sounds.  I'll leave this type of anaylsis to linguists with a better understanding of how the formation of certain word forms come together to create names and how these are likeable or not.  I do however think that it is noteworthy to acknowledge that it may be plausible that certain ending sounds in male names may cause trends in popularity of certain names.  Moreover, millions of people have decied that these same certain ending sounds, like the ending 'n' sound, are to their liking.  I think this in and of itself is very significant.  
+  
+## Female Names and Ending Letters
+  
+At first glance, the female names' ending letter trends are a bit more difficult to decipher, but there are some sticking points here as well.  
+
+
+
+
+```{r eval = TRUE, echo = FALSE, fig.height = 10, fig.width = 9, fig.align= "center"}
+
+# Query the Database for all Female names since 1964
+FemalesSince_1964 <- dbGetQuery(con, "SELECT Year, Count, Name 
+                                    FROM NationalNames
+                                    WHERE Gender = 'F'
+                                    AND Year BETWEEN 1964 AND 2014" )
+
+
+# Remove the last characters from the female names 
+FemalesSince_1964$Ending <- sapply(FemalesSince_1964$Name, LastChar)
+
+
+# Sum the number of female names which end in each letter, grouped by year
+Endings2 <- unique(FemalesSince_1964$Ending)
+FE_1 <- list() 
+invisible(for (i in 1:length(Endings2)) {
+  FE_1[[i]] <- FemalesSince_1964 %>% 
+    select(Year, Count, Ending) %>% 
+    group_by(Year) %>% 
+    filter(Ending == Endings2[i]) %>% 
+    summarise(Endings2[i], sum(Count))
+})
+names(FE_1) <- Endings2
+
+# Add names to the FE_1 dataframe
+invisible(
+for (i in 1:length(FE_1)) {
+  names(FE_1[[i]]) <- c('Year', "Ending", 'Total')
+})
+
+# Clone FE_1 into FE_2, combined it into a single vector and plot it 
+FE_2 <- ldply(FE_1, data.frame)
+FEP <- ggplot(FE_2, aes(x = Year, y = Total, colour = Ending, group = Ending)) + 
+		    geom_line() + 
+      	ggtitle("Change in Ending Letter: Female Names")
+FEP
+```
+
+
+
+
+Taking a look at the chart I notice a few things: 
+  
+* Names ending in 'a' are extremely popular for women.   
+* Names ending in 'h' show major gains across generations, but these are not nearly as prominant as 'n' for males for example.  
+  
+I will again note that it seems that there are certain female names that are extremely popular across generations and that show major gains as referenced by their ending letter/sound. However, I think it would merit more investigation to find out how or why these certain sounds are pleasing, particularly as female names and not male names. 
+
+I also want to take a moment to note that there is some overlap in the ending characters that are the most popular between the genders. However, the underlying trends in the overlapping ending letters seem to be to somewhat distinct.  This is interesting because it may lend some validation to the fact that male and female ending sounds that are popular are distinct to some degree.  This may be a point of further examination that I may take up.   
+
+
+
+
+```{r eval = TRUE, echo = FALSE, fig.height = 10, fig.width = 9, fig.align= "center"}
+# Net Change Per Character Females
+ChangeAlphaF <- list()
+invisible(for (i in 1:length(FE_1)) {
+  ChangeAlphaF[[i]] <- FE_1[[i]][51,3] - FE_1[[i]][1,3]
+}
+)
+# Find the characters with the greatest absolute value change over the period in Females
+names(ChangeAlphaF) <- names(FE_1)
+AlphaF <- ldply(ChangeAlphaF, data.frame)
+TopChangeF <- AlphaF[order(-abs(AlphaF$Total)),][1:10, 1]
+
+
+# Plot the ending values with the greatest absolute value change for Females
+FEP2Sub <- ggplot(FE_2[FE_2$Ending %in% TopChangeF,], aes(x = Year, y = Total, 
+		   colour = Ending, group = Ending)) + 
+		   geom_line() +
+       ggtitle("Change in Ending Letter: Top Female Names")
+
+
+FEP2Sub
+
+```
+
+
+
+
+## Closing & Reflections 
+  
+Far from coming up with an overarching theme for why certain names are popular, we have instead again another plausible method that can be linked to why we name ourselves as we do: that lingering sound at the end of a name seems to be connected with popularity of certain names in certain genders. Rather than trying to sum up this with any certainty, I think I'll end with the following: 
+  
+It's interesting, but I guess not surprising, that names can be such complex items to analyze over time, space, sound and many other dimensions.  Sometimes names can be a reflection of popular culture and other times not. Certain sounds/letters we seem to enjoy more than others at the close of names and we seem to think of these as having some gendered properties as well.  
+  
+If you'd care to ask what I think of all of this, I'd probably say that we could spend our entire lives analyzing this same dataset and finding new and interesting things to uncover about ourselves and how/when and why we interact with names the way that we do. In the end, though names are another example of human behavior carried out on a massive scale;  as lovers of data we're observers simply trying to make sense of such a complicated stream of information as it flows by.      
+
+
+
+
+
+
+
+
+
+
+
+
+
